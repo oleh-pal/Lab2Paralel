@@ -15,197 +15,51 @@ using namespace std;
 
 
 //task 1
-list<int> l;
-bool flag;
-mutex m;
-
-void DataPreparation() {
-	while (true) {
-		cout << "Введіть число або '/' для завершення: ";
-		string x;
-		cin >> x;
-		if (x == "/") {
-			std::unique_lock<std::mutex> lk(m);
-			flag = true;
-
-			break;
-		}
-		else
-		{
-
-			try {
-				int n = stoi(x);
-				l.push_back(n);
-			}
-			catch (const invalid_argument&) {
-				cout << "Некоректний ввід. Будь ласка, введіть число або '/'.\n";
-			}
-		}
-	}
-}
-
-void DataProcessing() {
-	std::unique_lock<std::mutex> lk(m);
-	while (!flag) {
-		lk.unlock();
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
-		lk.lock();
-	}
-	cout << "Серед ведених чисел простими є: \n";
-	for (int i : l) {
-		if (i <= 1) continue;
-
-		bool isPrime = true;
-		for (int j = 2; j * j <= i; j++) {
-			if (i % j == 0) {
-				isPrime = false;
-				break;
-			}
-		}
-		if (isPrime) {
-			cout << i << "\n";
-		}
-	}
-}
-
-int main() {
-	SetConsoleOutputCP(1251);
-	thread t1(DataPreparation);
-	t1.detach();
-	thread t2(DataProcessing);
-	t2.join();
-
-	return 0;
-}
-
-
-//task2
-int i = 0;
-mutex m;
-condition_variable dataCond;
-
-void Waits() {
-	cout << "Переходжу в режим очікування\n";
-	std::unique_lock<std::mutex> lk(m);
-	dataCond.wait(lk, [] {return i == 1;});
-	cout << "Очікування завершене\n";
-}
-void Awake() {
-	this_thread::sleep_for(std::chrono::milliseconds(100));
-	cout << "Розсилаю повідомлення\n";
-	dataCond.notify_all();
-	this_thread::sleep_for(std::chrono::milliseconds(100));
-	std::unique_lock<std::mutex> lk(m);
-	i = 1;
-	cout << "Розсилаю повідомлення повторно, i=1\n";
-	dataCond.notify_all();
-}
-
-int main() {
-	SetConsoleOutputCP(1251);
-	for (int i = 0;i < 3;i++) {
-		thread t1(Waits);
-		t1.detach();
-	}
-
-	thread t2(Awake);
-	t2.join();
-}
-
-//task 3
-int i = 0;
-mutex m;
-condition_variable dataCond;
-void Waits(int n) {
-	cout << "переходжу в режим очікування\n";
-	std::unique_lock<std::mutex> lk(m);
-	dataCond.wait(lk, [] {return i == 1;});
-	cout << "Повідомлення з потоку " << n << "\n";
-}
-void Notify() {
-	this_thread::sleep_for(std::chrono::milliseconds(100));
-	std::unique_lock<std::mutex> lk(m);
-	i = 1;
-	dataCond.notify_one();
-	
-}
-
-int main() {
-	SetConsoleOutputCP(1251);
-	thread Thread1(Waits, 1);
-	thread Thread2(Waits, 2);
-	thread Thread3(Waits, 3);
-	Thread1.detach();
-	Thread2.detach();
-	Thread3.detach();
-
-	thread t(Notify);
-	t.join();
-
-	this_thread::sleep_for(std::chrono::milliseconds(50));
-}
-
-//task4
-std::queue<int> dataQueue;
-condition_variable dataCond;
+queue<int> q;       
+bool flag = false; 
 mutex m;
 
 void DataPreparation() {
     while (true) {
         cout << "Введіть число або '/' для завершення: ";
-        string input;
-        cin >> input; 
-
-        if (input == "/") {
-            {
-                std::lock_guard<std::mutex> lk(m);
-                dataQueue.push(-1); 
-            }
-            dataCond.notify_one();
+        string x;
+        cin >> x;
+        if (x == "/") {
+            unique_lock<mutex> lk(m);
+            flag = true;
             break;
         }
-
         try {
-            int x = stoi(input);
-            {
-                std::lock_guard<std::mutex> lk(m);
-                dataQueue.push(x);
-            }
-            dataCond.notify_one();
+            int n = stoi(x);
+            lock_guard<mutex> lk(m);
+            q.push(n);
         }
         catch (const invalid_argument&) {
             cout << "Некоректний ввід. Будь ласка, введіть число або '/'.\n";
+        }
+        catch (const out_of_range&) {
+            cout << "Число занадто велике.\n";
         }
     }
 }
 
 void DataProcessing() {
-    while (true) {
-        std::unique_lock<std::mutex> lk(m);
-        dataCond.wait(lk, [] { return !dataQueue.empty(); });
-        int i = dataQueue.front();
-        dataQueue.pop();
+    unique_lock<mutex> lk(m);
+    while (!flag) {
         lk.unlock();
-
-        if (i == -1) {
-            break;
-        }
-
-        if (i <= 1) {
-            cout << "\nЧисло " << i << " не є простим чи складеним\n";
-            continue;
-        }
-
+        this_thread::sleep_for(chrono::milliseconds(100));
+        lk.lock();
+    }
+    cout << "Серед введених чисел простими є:\n";
+    while (!q.empty()) {
+        int i = q.front();
+        q.pop();
+        if (i <= 1) continue;
         bool isPrime = true;
-        for (int j = 2; j * j <= i; j++) {
-            if (i % j == 0) {
-                isPrime = false;
-                break;
-            }
+        for (long long j = 2; j * j <= i; j++) {
+            if (i % j == 0) { isPrime = false; break; }
         }
-        if (isPrime) {
-            cout << "\nЧисло " << i << " є простим\n";
-        }
+        if (isPrime) cout << i << "\n";
     }
 }
 
@@ -215,10 +69,152 @@ int main() {
     t1.detach();
     thread t2(DataProcessing);
     t2.join();
-
     return 0;
 }
 
+
+//task2
+int i = 0;
+mutex m;
+condition_variable dataCond;
+
+void Waits() {
+    cout << "Переходжу в режим очікування\n";
+    unique_lock<mutex> lk(m);
+    dataCond.wait(lk, [] { return i == 1; });
+    cout << "Очікування завершене\n";
+}
+
+void Awake() {
+    this_thread::sleep_for(chrono::milliseconds(100));
+    cout << "Розсилаю повідомлення\n";
+    dataCond.notify_all();                       
+    this_thread::sleep_for(chrono::milliseconds(100));
+    {
+        unique_lock<mutex> lk(m);
+        i = 1;
+    }
+    cout << "Розсилаю повідомлення повторно, i=1\n";
+    dataCond.notify_all();
+}
+
+int main() {
+    SetConsoleOutputCP(1251);
+    vector<thread> waiters;
+    for (int k = 0; k < 3; k++) { 
+        thread t(Waits);
+        waiters.push_back(t);
+    };
+
+    thread t2(Awake);
+    t2.join();                       
+    for (auto& t : waiters) t.join(); 
+    return 0;
+}
+
+//task 3
+int i = 0;
+mutex m;
+condition_variable dataCond;
+ 
+void Waits(int n) {
+    cout << "Потік " << n << " переходить в режим очікування\n";
+    unique_lock<mutex> lk(m);
+    dataCond.wait(lk, [] { return i == 1; });
+    cout << "Повідомлення з потоку " << n << "\n";
+}
+ 
+void Notify() {
+    this_thread::sleep_for(chrono::milliseconds(100));
+    {
+        unique_lock<mutex> lk(m);
+        i = 1;
+    }
+    dataCond.notify_one();  
+}
+ 
+int main() {
+    SetConsoleOutputCP(1251);
+    thread Thread1(Waits, 1);
+    thread Thread2(Waits, 2);
+    thread Thread3(Waits, 3);
+   
+    Thread1.detach();
+    Thread2.detach();
+    Thread3.detach();
+ 
+    thread t(Notify);
+    t.join();
+    this_thread::sleep_for(chrono::milliseconds(200));
+    return 0;
+}
+
+//task4
+queue<int> dataQueue;
+condition_variable dataCond;
+mutex m;
+bool finished = false;  
+
+void DataPreparation() {
+    while (true) {
+        cout << "Введіть число або '/' для завершення: ";
+        string input;
+        cin >> input;
+
+        if (input == "/") {
+            {
+                lock_guard<mutex> lk(m);
+                finished = true;
+            }
+            dataCond.notify_one();
+            break;
+        }
+        try {
+            int x = stoi(input);
+            {
+                lock_guard<mutex> lk(m);
+                dataQueue.push(x);
+            }
+            dataCond.notify_one();
+        }
+        catch (const invalid_argument&) {
+            cout << "Некоректний ввід. Будь ласка, введіть число або '/'.\n";
+        }
+        catch (const out_of_range&) {
+            cout << "Число занадто велике.\n";
+        }
+    }
+}
+
+void DataProcessing() {
+    while (true) {
+        unique_lock<mutex> lk(m);
+        dataCond.wait(lk, [] { return !dataQueue.empty() || finished; });
+        if (dataQueue.empty()) break;      
+        int i = dataQueue.front();
+        dataQueue.pop();
+        lk.unlock();
+
+        if (i <= 1) {
+            cout << "\nЧисло " << i << " не є простим\n";
+            continue;
+        }
+        bool isPrime = true;
+        for (long long j = 2; j * j <= i; j++) {
+            if (i % j == 0) { isPrime = false; break; }
+        }
+        if (isPrime) cout << "\nЧисло " << i << " є простим\n";
+    }
+}
+
+int main() {
+    SetConsoleOutputCP(1251);
+    thread t1(DataPreparation);
+    thread t2(DataProcessing);
+    t1.join();
+    t2.join();
+    return 0;
+}
 
 //task 5
 int CalcSimpleNum(int n) {
@@ -275,26 +271,21 @@ int main() {
 
 //task6
 int CalcSimpleNum(int n) {
+    if (n <= 0) throw invalid_argument("n має бути додатним");
     vector<int> num(n);
     num[0] = 2;
     int N = 1;
     int Num = 3;
-    for (int i = 0;N < n;i++) {
+    while (N < n) {
         bool isPrime = true;
         for (int j = 0; j < N; j++) {
-            if (num[j] * num[j] > Num) { break; }
-            if (Num % num[j] == 0) { isPrime = false;break; }
+            if (num[j] * num[j] > Num) break;
+            if (Num % num[j] == 0) { isPrime = false; break; }
         }
-        if (isPrime) {
-            num[N] = Num;
-            N++;
-        }
+        if (isPrime) num[N++] = Num;
         Num += 2;
     }
-    return num[n-1];
-
-    //auto s= find(num.begin(), num.end(), n);
-
+    return num[n - 1];
 }
 
 deque<packaged_task<int(int)>> taskDeque;
@@ -307,22 +298,23 @@ void Worker() {
     while (true) {
         packaged_task<int(int)> task;
         int n;
+        {  
             unique_lock<mutex> lk(m);
             cv.wait(lk, [] { return !taskDeque.empty() || done; });
-
-            if (done && taskDeque.empty()) {
-                break;
-            }
+            if (done && taskDeque.empty()) break;
             task = move(taskDeque.front());
             taskDeque.pop_front();
-
             n = nDeque.front();
             nDeque.pop_front();
-
+        }
         future<int> fut = task.get_future();
-
-        task(n);
-        cout << "[Потік обробки] " << n << "-те просте число: " << fut.get() << "\n";
+        task(n);  
+        try {
+            cout << "[Потік обробки] " << n << "-те просте число: " << fut.get() << "\n";
+        }
+        catch (const exception& e) {
+            cout << "[Потік обробки] Помилка для n=" << n << ": " << e.what() << "\n";
+        }
     }
 }
 
@@ -330,38 +322,36 @@ int main() {
     SetConsoleOutputCP(1251);
     thread workerThread(Worker);
 
-    cout << "Вводьте номери n для пошуку простих чисел. Для завершення введіть стоп-символ '/'\n";
+    cout << "Вводьте номери n для пошуку простих чисел. Для завершення введіть '/'\n";
     while (true) {
-       string cmd;
-       cin >> cmd;
-       if (cmd == "/") {
-           break; 
-       }
-       try {
-           int x = stoi(cmd);
-
-           {
-               unique_lock<mutex> lk(m);
-               packaged_task<int(int)> pt(CalcSimpleNum);
-               taskDeque.push_back(move(pt));
-               nDeque.push_back(x);
-           }
-           cv.notify_one();
-
-       }
-       catch (const invalid_argument&) {
-           cout << "Некоректний ввід. Будь ласка, введіть число або '/'.\n";
-       }
+        string cmd;
+        cin >> cmd;
+        if (cmd == "/") break;
+        try {
+            int x = stoi(cmd);
+            if (x <= 0) { cout << "n має бути додатним.\n"; continue; }
+            {
+                lock_guard<mutex> lk(m);
+                taskDeque.emplace_back(CalcSimpleNum);
+                nDeque.push_back(x);
+            }
+            cv.notify_one();
+        }
+        catch (const invalid_argument&) {
+            cout << "Некоректний ввід. Будь ласка, введіть число або '/'.\n";
+        }
+        catch (const out_of_range&) {
+            cout << "Число занадто велике.\n";
+        }
     }
-    
+
     {
         lock_guard<mutex> lk(m);
         done = true;
-        cv.notify_one();
     }
-    workerThread.join();
+    cv.notify_one();
+    workerThread.join();   
     cout << "Усі обчислення завершено.\n";
-
     return 0;
 }
 
